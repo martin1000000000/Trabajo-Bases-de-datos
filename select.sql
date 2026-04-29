@@ -84,7 +84,6 @@ ORDER BY p.id_contenido;
 SELECT
     s.id_contenido,
     s.estudio_animacion,
-    s.emision_sitio,
     STRING_AGG(DISTINCT g.tipo, ', ' ORDER BY g.tipo) AS generos,
     COUNT(DISTINCT t.id_temporada)                     AS total_temporadas,
     COALESCE(SUM(t.cant_capitulos), 0)                 AS total_capitulos
@@ -92,7 +91,7 @@ FROM Series s
 LEFT JOIN Serie_Tiene_Genero sg ON sg.id_contenido = s.id_contenido
 LEFT JOIN Generos g             ON g.id_genero     = sg.id_genero
 LEFT JOIN Temporadas t          ON t.id_contenido  = s.id_contenido
-GROUP BY s.id_contenido, s.estudio_animacion, s.emision_sitio
+GROUP BY s.id_contenido, s.estudio_animacion
 ORDER BY s.id_contenido;
 
 -- ---------------------------------------------------------
