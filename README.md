@@ -4,7 +4,7 @@ Proyecto del ramo de **Bases de Datos** que modela una plataforma de streaming d
 
 ---
 
-## 📋 Descripción
+##  Descripción
 
 El sistema simula la operación completa de un servicio de streaming de anime, incluyendo:
 
@@ -15,7 +15,7 @@ El sistema simula la operación completa de un servicio de streaming de anime, i
 
 ---
 
-## 🗂️ Estructura del Repositorio
+##  Estructura del Repositorio
 
 | Archivo | Descripción |
 |---|---|
@@ -27,7 +27,7 @@ El sistema simula la operación completa de un servicio de streaming de anime, i
 ---
 
 
-## 👥 Integrantes — Grupo 3
+##  Integrantes — Grupo 3
 
 *Martin Arrigo, Nicolas Toro, Benjamin Neira, Diego Mora .*
 
