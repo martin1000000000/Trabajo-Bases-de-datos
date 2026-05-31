@@ -1,37 +1,61 @@
 -- =========================================================
--- SCRIPT 2: DATOS SINTÉTICOS - CRUNCHYROLL (Anime)
--- Ajustado al nuevo esquema (01_create_tables.sql)
--- · 50 películas anime + 30 series anime
--- · Géneros reales de anime
--- · Planes reales de Crunchyroll
--- · 4 años de datos transaccionales: 2022-01-01 → 2025-12-31
--- · Volumen estimado: 200k–400k filas únicas finales
+-- SCRIPT: DATOS SINTETICOS MASIVOS
+-- Ajustado al esquema de create_tables.sql y a los diagramas.
+-- Volumen esperado total: aprox. 300k a 380k filas.
+-- PostgreSQL
 -- =========================================================
 
+-- Limpia los datos existentes para poder reejecutar este script sin duplicados.
+-- Si cambiaste columnas en create_tables.sql, ejecuta create_tables.sql antes.
+TRUNCATE TABLE
+    Historial_Contenido,
+    Perfil_Ve_Contenido,
+    Lista_Guarda_Contenido,
+    Serie_Tiene_Genero,
+    Pelicula_Tiene_Genero,
+    Plan_Tipo_Pago,
+    Valoracion,
+    Recomendaciones,
+    Historial,
+    Listas,
+    Perfil,
+    Fecha_Renovacion,
+    Detalles_Pago,
+    Usuario,
+    Tipo_Pago,
+    Plan,
+    Episodios,
+    Temporadas,
+    Series,
+    Peliculas,
+    Generos,
+    Contenido
+RESTART IDENTITY CASCADE;
+
 -- =========================================================
--- 1. CATÁLOGOS BASE
+-- 1. CATALOGOS BASE
 -- =========================================================
 
--- Tipo_Pago (id_tipo_pago será 1..4)
 INSERT INTO Tipo_Pago (nombre) VALUES
-    ('Tarjeta de Crédito'),
+    ('Tarjeta de Credito'),
     ('PayPal'),
-    ('Tarjeta de Débito'),
-    ('Transferencia Bancaria');
+    ('Tarjeta de Debito'),
+    ('Google Play'),
+    ('App Store');
 
--- Planes reales de Crunchyroll (id_plan será 1..3)
-INSERT INTO Plan (nombre, precio) VALUES
-    ('Fan',      4500.00),
-    ('Mega Fan', 7500.00),
-    ('Ultimate', 11000.00);
+INSERT INTO Plan (nombre, precio, tipo_plan) VALUES
+    ('Fan',       4500.00, 1),
+    ('Fan',      45900.00, 12),
+    ('Mega Fan',  7500.00, 1),
+    ('Mega Fan', 76500.00, 12),
+    ('Ultimate', 11000.00, 1),
+    ('Ultimate',112200.00, 12);
 
--- Relación N:M → Plan_Tipo_Pago (todos los planes aceptan todos los tipos de pago)
-INSERT INTO Plan_Tipo_Pago (id_plan, id_tipo_pago) VALUES
-    (1, 1), (1, 2), (1, 3), (1, 4),
-    (2, 1), (2, 2), (2, 3), (2, 4),
-    (3, 1), (3, 2), (3, 3), (3, 4);
+INSERT INTO Plan_Tipo_Pago (id_plan, id_tipo_pago)
+SELECT p.id_plan, tp.id_tipo_pago
+FROM Plan p
+CROSS JOIN Tipo_Pago tp;
 
--- Géneros reales del mundo anime (id_genero será 1..12)
 INSERT INTO Generos (tipo) VALUES
     ('Shonen'),
     ('Shojo'),
@@ -47,46 +71,43 @@ INSERT INTO Generos (tipo) VALUES
     ('Sobrenatural');
 
 -- =========================================================
--- 2. CONTENIDO: 50 películas anime + 30 series anime
---    Contenido solo tiene id_contenido (supertipo)
---    Peliculas hereda: estudio_animacion, clasificacion
---    Series hereda: estudio_animacion, emision_sitio
+-- 2. CONTENIDO: 50 PELICULAS + 30 SERIES
 -- =========================================================
+
 DO $$
 DECLARE
     v_contenido_id INT;
     v_temporada_id INT;
-
     v_peliculas TEXT[] := ARRAY[
         'Spirited Away',
         'Princess Mononoke',
         'My Neighbor Totoro',
         'Howl''s Moving Castle',
         'Castle in the Sky',
-        'Nausicaä of the Valley of the Wind',
+        'Nausicaa of the Valley of the Wind',
+        'Kiki''s Delivery Service',
+        'Porco Rosso',
+        'Whisper of the Heart',
+        'The Cat Returns',
+        'The Wind Rises',
+        'When Marnie Was There',
         'The Tale of Princess Kaguya',
         'Grave of the Fireflies',
         'Only Yesterday',
         'Pom Poko',
-        'Whisper of the Heart',
-        'The Cat Returns',
-        'Porco Rosso',
-        'Kiki''s Delivery Service',
-        'When Marnie Was There',
-        'The Wind Rises',
         'Arrietty',
         'From Up on Poppy Hill',
         'Tales from Earthsea',
         'The Red Turtle',
         'Your Name',
-        'A Silent Voice',
-        'The Garden of Words',
-        'Children Who Chase Lost Voices',
-        'Voices of a Distant Star',
-        '5 Centimeters per Second',
-        'The Place Promised in Our Early Days',
         'Weathering With You',
         'Suzume',
+        'A Silent Voice',
+        'The Garden of Words',
+        '5 Centimeters per Second',
+        'Children Who Chase Lost Voices',
+        'Voices of a Distant Star',
+        'The Place Promised in Our Early Days',
         'Belle',
         'Mirai',
         'Wolf Children',
@@ -102,14 +123,20 @@ DECLARE
         'Jin-Roh: The Wolf Brigade',
         'Ninja Scroll',
         'Demon Slayer: Mugen Train',
-        'Dragon Ball Super: Broly',
-        'One Piece Film: Red',
         'Jujutsu Kaisen 0',
+        'One Piece Film: Red',
+        'Dragon Ball Super: Broly',
         'My Hero Academia: Heroes Rising',
         'Sword Art Online: Ordinal Scale',
         'Evangelion: 3.0+1.0 Thrice Upon a Time'
     ];
-
+    v_duraciones INT[] := ARRAY[
+        125, 134, 86, 119, 124, 117, 103, 94, 111, 75,
+        126, 103, 137, 89, 119, 119, 94, 91, 115, 80,
+        106, 112, 122, 130, 46, 63, 116, 25, 91, 121,
+        98, 117, 98, 114, 119, 90, 81, 87, 92, 124,
+        82, 102, 94, 117, 105, 115, 100, 104, 119, 155
+    ];
     v_series TEXT[] := ARRAY[
         'Demon Slayer: Kimetsu no Yaiba',
         'Attack on Titan',
@@ -131,7 +158,7 @@ DECLARE
         'Chainsaw Man',
         'Mob Psycho 100',
         'One Punch Man',
-        'Re:Zero − Starting Life in Another World',
+        'Re:Zero - Starting Life in Another World',
         'That Time I Got Reincarnated as a Slime',
         'Overlord',
         'No Game No Life',
@@ -142,7 +169,6 @@ DECLARE
         'Neon Genesis Evangelion',
         'Cowboy Bebop'
     ];
-
     v_estudios TEXT[] := ARRAY[
         'Studio Ghibli',
         'Ufotable',
@@ -151,85 +177,73 @@ DECLARE
         'Bones',
         'Madhouse',
         'Toei Animation',
-        'Sunrise',
         'Kyoto Animation',
         'CloverWorks',
         'A-1 Pictures',
-        'Production I.G'
+        'Production I.G',
+        'Trigger'
     ];
-
-    v_sitios_emision TEXT[] := ARRAY[
-        'Crunchyroll',
-        'Funimation',
-        'Netflix',
-        'Amazon Prime Video',
-        'Disney+',
-        'HBO Max',
-        'Hulu',
-        'TV Tokyo',
-        'NHK',
-        'Fuji TV'
+    v_clasificaciones TEXT[] := ARRAY[
+        'Todo publico',
+        'supervision parental',
+        '12+',
+        '14+',
+        '16+',
+        '18+'
     ];
-
-    v_num_temp INT;
-    v_num_ep   INT;
+    v_num_ep INT;
 BEGIN
-    -- =============================================
-    -- 50 PELÍCULAS ANIME
-    -- =============================================
-    FOR i IN 1..50 LOOP
-        -- Insertar supertipo (Contenido solo tiene PK)
-        INSERT INTO Contenido DEFAULT VALUES
+    FOR i IN 1..array_length(v_peliculas, 1) LOOP
+        INSERT INTO Contenido (nombre, tipo_contenido, clasificacion)
+        VALUES (
+            v_peliculas[i],
+            'pelicula',
+            v_clasificaciones[((i - 1) % array_length(v_clasificaciones, 1)) + 1]
+        )
         RETURNING id_contenido INTO v_contenido_id;
 
-        -- Insertar subtipo Peliculas con estudio_animacion y clasificacion
-        INSERT INTO Peliculas (id_contenido, estudio_animacion, clasificacion)
+        INSERT INTO Peliculas (id_contenido, duracion, estudio_animacion)
         VALUES (
             v_contenido_id,
-            v_estudios[floor(random()*12)+1],
-            (ARRAY['PG-13', '+18', 'Apto Todo Público'])[floor(random()*3)+1]
+            v_duraciones[i],
+            v_estudios[((i - 1) % array_length(v_estudios, 1)) + 1]
         );
 
-        -- 2 géneros por película
-        INSERT INTO Pelicula_Tiene_Genero (id_contenido, id_genero)
-        VALUES (v_contenido_id, floor(random()*12)+1)
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO Pelicula_Tiene_Genero (id_contenido, id_genero)
-        VALUES (v_contenido_id, floor(random()*12)+1)
+        INSERT INTO Pelicula_Tiene_Genero (id_contenido, id_genero) VALUES
+            (v_contenido_id, ((i - 1) % 12) + 1),
+            (v_contenido_id, (i % 12) + 1),
+            (v_contenido_id, ((i + 4) % 12) + 1)
         ON CONFLICT DO NOTHING;
     END LOOP;
 
-    -- =============================================
-    -- 30 SERIES ANIME con temporadas y episodios
-    -- =============================================
-    FOR i IN 1..30 LOOP
-        -- Insertar supertipo
-        INSERT INTO Contenido DEFAULT VALUES
+    FOR i IN 1..array_length(v_series, 1) LOOP
+        INSERT INTO Contenido (nombre, tipo_contenido, clasificacion)
+        VALUES (
+            v_series[i],
+            'serie',
+            v_clasificaciones[((i + 1) % array_length(v_clasificaciones, 1)) + 1]
+        )
         RETURNING id_contenido INTO v_contenido_id;
 
-        -- Insertar subtipo Series con estudio_animacion y emision_sitio
-        INSERT INTO Series (id_contenido, estudio_animacion, emision_sitio)
+        INSERT INTO Series (id_contenido, estudio_animacion, emision)
         VALUES (
             v_contenido_id,
-            v_estudios[floor(random()*12)+1],
-            v_sitios_emision[floor(random()*10)+1]
+            v_estudios[((i + 2) % array_length(v_estudios, 1)) + 1],
+            i % 4 <> 0
         );
 
-        -- 2 géneros por serie
-        INSERT INTO Serie_Tiene_Genero (id_contenido, id_genero)
-        VALUES (v_contenido_id, floor(random()*12)+1)
+        INSERT INTO Serie_Tiene_Genero (id_contenido, id_genero) VALUES
+            (v_contenido_id, ((i + 2) % 12) + 1),
+            (v_contenido_id, ((i + 5) % 12) + 1),
+            (v_contenido_id, ((i + 8) % 12) + 1)
         ON CONFLICT DO NOTHING;
 
-        INSERT INTO Serie_Tiene_Genero (id_contenido, id_genero)
-        VALUES (v_contenido_id, floor(random()*12)+1)
-        ON CONFLICT DO NOTHING;
-
-        -- Entre 2 y 5 temporadas por serie
-        v_num_temp := floor(random()*4)+2;
-        FOR t IN 1..v_num_temp LOOP
-            -- Episodios estándar anime: 12, 13, 24, 25 o 26
-            v_num_ep := (ARRAY[12, 13, 24, 25, 26])[floor(random()*5)+1];
+        FOR t IN 1..3 LOOP
+            v_num_ep := CASE
+                WHEN t = 1 THEN 12
+                WHEN t = 2 THEN 13
+                ELSE 24
+            END;
 
             INSERT INTO Temporadas (numero, cant_capitulos, id_contenido)
             VALUES (t, v_num_ep, v_contenido_id)
@@ -237,35 +251,48 @@ BEGIN
 
             FOR e IN 1..v_num_ep LOOP
                 INSERT INTO Episodios (titulo, duracion, id_temporada)
-                VALUES (
-                    'Episodio ' || e,
-                    24,  -- duración estándar anime TV en minutos
-                    v_temporada_id
-                );
+                VALUES ('Episodio ' || e, 22 + (e % 5), v_temporada_id);
             END LOOP;
         END LOOP;
     END LOOP;
 END $$;
 
 -- =========================================================
--- 3. USUARIOS, PERFILES, LISTAS E HISTORIAL
---    10.000 usuarios × 2 perfiles = 20.000 perfiles
---    Listas ahora pertenecen a Usuario (id_usuario)
---    Perfil ahora tiene campo foto
+-- 3. USUARIOS, PAGOS, PERFILES, LISTAS E HISTORIAL
+--    4.000 usuarios x 2 perfiles = 8.000 perfiles
 -- =========================================================
+
 DO $$
 DECLARE
     v_usuario_id       INT;
     v_perfil_id        INT;
-    v_historial_id     INT;
     v_detalles_pago_id INT;
-
+    v_plan_id          INT;
+    v_tipo_plan        INT;
+    v_fecha_pago       DATE;
     v_regiones TEXT[] := ARRAY[
-        'Los Ríos', 'Los Lagos', 'Araucanía', 'Metropolitana',
-        'Valparaíso', 'Biobío', 'Coquimbo', 'Maule', 'Atacama'
+        'Los Rios',
+        'Los Lagos',
+        'Araucania',
+        'Metropolitana',
+        'Valparaiso',
+        'Biobio',
+        'Coquimbo',
+        'Maule',
+        'Atacama',
+        'Tarapaca',
+        'Antofagasta',
+        'Magallanes'
     ];
     v_nombres_perfil TEXT[] := ARRAY[
-        'Otaku', 'Admin', 'Kids', 'Invitado', 'Senpai', 'Familia', 'Adultos', 'Teens'
+        'Otaku',
+        'Admin',
+        'Kids',
+        'Invitado',
+        'Senpai',
+        'Familia',
+        'Adultos',
+        'Teens'
     ];
     v_fotos TEXT[] := ARRAY[
         'avatar_naruto.png',
@@ -275,210 +302,180 @@ DECLARE
         'avatar_totoro.png',
         'avatar_gojo.png',
         'avatar_levi.png',
-        'avatar_mikasa.png',
-        'avatar_default.png',
-        NULL
+        'avatar_default.png'
+    ];
+    v_restricciones TEXT[] := ARRAY[
+        'Todo publico',
+        'supervision parental',
+        '12+',
+        '14+',
+        '16+',
+        '18+'
     ];
 BEGIN
-    FOR i IN 1..10000 LOOP
-        -- Detalles de pago (FK a Tipo_Pago via id_tipo_pago)
-        INSERT INTO Detalles_Pago (numero_cuenta, id_tipo_pago)
-        VALUES (
-            'XXXX-XXXX-XXXX-' || (floor(random()*9000)+1000)::TEXT,
-            floor(random()*4)+1
-        ) RETURNING id_detalles_pago INTO v_detalles_pago_id;
+    FOR i IN 1..4000 LOOP
+        SELECT id_plan, tipo_plan
+        INTO v_plan_id, v_tipo_plan
+        FROM Plan
+        ORDER BY random()
+        LIMIT 1;
 
-        -- Fecha de renovación (FK a Detalles_Pago via id_detalles_pago)
-        INSERT INTO Fecha_Renovacion (fecha, id_detalles_pago)
-        VALUES (
-            CURRENT_DATE + (floor(random()*365) || ' days')::INTERVAL,
-            v_detalles_pago_id
-        );
-
-        -- Usuario (correo, contrasena, region, id_plan)
         INSERT INTO Usuario (correo, contrasena, region, id_plan)
         VALUES (
             'usuario_' || i || '@correo.com',
             md5('password' || i),
-            v_regiones[floor(random()*9)+1],
-            floor(random()*3)+1
-        ) RETURNING id_usuario INTO v_usuario_id;
+            v_regiones[((i - 1) % array_length(v_regiones, 1)) + 1],
+            v_plan_id
+        )
+        RETURNING id_usuario INTO v_usuario_id;
 
-        -- 2 listas por usuario (Listas referencia id_usuario, sin nombre)
-        INSERT INTO Listas (id_usuario) VALUES (v_usuario_id);
-        INSERT INTO Listas (id_usuario) VALUES (v_usuario_id);
+        v_fecha_pago := CURRENT_DATE - (((i % 30) + 1) || ' days')::INTERVAL;
 
-        -- 2 perfiles por usuario (con foto)
+        INSERT INTO Detalles_Pago (numero_cuenta, fecha_pago, id_tipo_pago, id_usuario)
+        VALUES (
+            'XXXX-XXXX-XXXX-' || lpad(i::TEXT, 4, '0'),
+            v_fecha_pago,
+            ((i - 1) % 5) + 1,
+            v_usuario_id
+        )
+        RETURNING id_detalles_pago INTO v_detalles_pago_id;
+
+        INSERT INTO Fecha_Renovacion (fecha, id_detalles_pago)
+        VALUES (
+            CASE
+                WHEN v_tipo_plan = 12 THEN v_fecha_pago + INTERVAL '12 months'
+                ELSE v_fecha_pago + INTERVAL '1 month'
+            END,
+            v_detalles_pago_id
+        );
+
+        INSERT INTO Listas (nombre_lista, id_usuario) VALUES
+            ('Favoritos', v_usuario_id),
+            ('Pendientes', v_usuario_id);
+
         FOR p IN 1..2 LOOP
-            INSERT INTO Perfil (nombre, foto, id_usuario)
+            INSERT INTO Perfil (nombre, foto, restriccion, id_usuario)
             VALUES (
-                v_nombres_perfil[floor(random()*8)+1] || '_' || p,
-                v_fotos[floor(random()*10)+1],
+                v_nombres_perfil[((i + p - 2) % array_length(v_nombres_perfil, 1)) + 1] || '_' || p,
+                v_fotos[((i + p - 2) % array_length(v_fotos, 1)) + 1],
+                v_restricciones[((i + p - 2) % array_length(v_restricciones, 1)) + 1],
                 v_usuario_id
-            ) RETURNING id_perfil INTO v_perfil_id;
-
-            -- Historial 1:1 con Perfil
-            INSERT INTO Historial (id_perfil)
-            VALUES (v_perfil_id)
-            RETURNING id_historial INTO v_historial_id;
-        END LOOP;
-    END LOOP;
-END $$;
-
--- =========================================================
--- 4. DATOS TRANSACCIONALES MASIVOS: 4 AÑOS (2022–2025)
---
---  Por día:
---    A) 200–700 visualizaciones  → Perfil_Ve_Contenido
---    B) 15% → Valoracion (puntaje 1–10)
---    C) 10% → Lista_Guarda_Contenido
---    D) 8%  → Historial_Contenido (accede)
---
---  Estimado: ~200k–400k filas únicas finales
--- =========================================================
-DO $$
-DECLARE
-    v_fecha              DATE;
-    v_vistas_dia         INT;
-    v_perfil_random      INT;
-    v_contenido_random   INT;
-    v_lista_random       INT;
-    v_historial_random   INT;
-    v_total_contenidos   INT;
-    v_total_perfiles     INT;
-    v_total_listas       INT;
-    v_total_historiales  INT;
-BEGIN
-    -- Cachear totales para no hacer COUNT en cada iteración
-    SELECT COUNT(*) INTO v_total_contenidos  FROM Contenido;
-    SELECT COUNT(*) INTO v_total_perfiles    FROM Perfil;
-    SELECT COUNT(*) INTO v_total_listas      FROM Listas;
-    SELECT COUNT(*) INTO v_total_historiales FROM Historial;
-
-    FOR v_fecha IN
-        SELECT generate_series(
-            '2022-01-01'::DATE,
-            '2025-12-31'::DATE,
-            '1 day'::INTERVAL
-        )::DATE
-    LOOP
-        -- Fines de semana tienen más actividad (realismo)
-        IF EXTRACT(DOW FROM v_fecha) IN (0, 6) THEN
-            v_vistas_dia := floor(random()*400)+400;   -- 400–800
-        ELSE
-            v_vistas_dia := floor(random()*300)+200;   -- 200–500
-        END IF;
-
-        FOR i IN 1..v_vistas_dia LOOP
-            v_perfil_random    := floor(random()*v_total_perfiles)+1;
-            v_contenido_random := floor(random()*v_total_contenidos)+1;
-
-            -- A) Visualización (upsert: actualiza la última fecha vista)
-            INSERT INTO Perfil_Ve_Contenido (id_perfil, id_contenido, fecha)
-            VALUES (
-                v_perfil_random,
-                v_contenido_random,
-                v_fecha + (random() * INTERVAL '23 hours')
             )
-            ON CONFLICT (id_perfil, id_contenido)
-            DO UPDATE SET fecha = EXCLUDED.fecha;
+            RETURNING id_perfil INTO v_perfil_id;
 
-            -- B) 15% de probabilidad: valorar (puntaje 1–10)
-            IF random() < 0.15 THEN
-                INSERT INTO Valoracion (puntaje, id_perfil, id_contenido)
-                VALUES (
-                    (floor(random()*10)+1)::NUMERIC,
-                    v_perfil_random,
-                    v_contenido_random
-                )
-                ON CONFLICT (id_perfil, id_contenido) DO NOTHING;
-            END IF;
-
-            -- C) 10% de probabilidad: guardar en lista
-            IF random() < 0.10 THEN
-                v_lista_random := floor(random()*v_total_listas)+1;
-                INSERT INTO Lista_Guarda_Contenido (id_lista, id_contenido)
-                VALUES (v_lista_random, v_contenido_random)
-                ON CONFLICT DO NOTHING;
-            END IF;
-
-            -- D) 8% de probabilidad: registrar en historial_contenido (Accede)
-            IF random() < 0.08 THEN
-                v_historial_random := floor(random()*v_total_historiales)+1;
-                INSERT INTO Historial_Contenido (id_historial, id_contenido, fecha)
-                VALUES (
-                    v_historial_random,
-                    v_contenido_random,
-                    v_fecha + (random() * INTERVAL '23 hours')
-                )
-                ON CONFLICT (id_historial, id_contenido)
-                DO UPDATE SET fecha = EXCLUDED.fecha;
-            END IF;
-
+            INSERT INTO Historial (id_perfil)
+            VALUES (v_perfil_id);
         END LOOP;
     END LOOP;
 END $$;
 
 -- =========================================================
--- 5. RECOMENDACIONES
---    ~3 recomendaciones por perfil basadas en contenidos
---    más vistos globalmente en la plataforma
---    Campo atribuye = motivo de la recomendación
+-- 4. VISUALIZACIONES MASIVAS
+--    180.000 filas en Perfil_Ve_Contenido
 -- =========================================================
-DO $$
-DECLARE
-    v_perfil_id      INT;
-    v_historial_id   INT;
-    v_contenido_id   INT;
-    v_top_contenidos INT[];
-    v_motivos TEXT[] := ARRAY[
-        'Basado en tu historial de visualización',
-        'Usuarios similares también vieron',
-        'Popular en tu región',
-        'Tendencia esta semana',
-        'Porque viste contenido del mismo género',
-        'Recomendado por tu puntaje a contenidos similares',
-        'Nuevo lanzamiento que te podría gustar',
-        'Top valorado por la comunidad'
-    ];
-BEGIN
-    -- Top 20 contenidos más vistos globalmente
-    SELECT ARRAY(
-        SELECT id_contenido
-        FROM Perfil_Ve_Contenido
-        GROUP BY id_contenido
-        ORDER BY COUNT(*) DESC
-        LIMIT 20
-    ) INTO v_top_contenidos;
 
-    -- Para cada perfil insertar hasta 3 recomendaciones
-    FOR v_perfil_id, v_historial_id IN
-        SELECT p.id_perfil, h.id_historial
-        FROM Perfil p
-        JOIN Historial h ON h.id_perfil = p.id_perfil
-    LOOP
-        FOR j IN 1..3 LOOP
-            v_contenido_id := v_top_contenidos[floor(random()*20)+1];
-
-            INSERT INTO Recomendaciones (atribuye, id_historial)
-            VALUES (
-                v_motivos[floor(random()*8)+1],
-                v_historial_id
-            );
-        END LOOP;
-    END LOOP;
-END $$;
+INSERT INTO Perfil_Ve_Contenido (id_perfil, id_contenido, fecha)
+SELECT
+    (floor(random() * 8000) + 1)::INT AS id_perfil,
+    (floor(random() * 80) + 1)::INT AS id_contenido,
+    DATE '2024-01-01'
+        + ((floor(random() * 730)) || ' days')::INTERVAL
+        + ((floor(random() * 24)) || ' hours')::INTERVAL
+        + ((floor(random() * 60)) || ' minutes')::INTERVAL AS fecha
+FROM generate_series(1, 180000);
 
 -- =========================================================
--- 6. VERIFICACIÓN FINAL DE VOLUMEN
+-- 5. VALORACIONES
+--    Hasta 45.000 combinaciones perfil/contenido.
 -- =========================================================
+
+INSERT INTO Valoracion (puntaje, id_perfil, id_contenido)
+SELECT
+    (floor(random() * 10) + 1)::NUMERIC AS puntaje,
+    id_perfil,
+    id_contenido
+FROM (
+    SELECT DISTINCT
+        (floor(random() * 8000) + 1)::INT AS id_perfil,
+        (floor(random() * 80) + 1)::INT AS id_contenido
+    FROM generate_series(1, 55000)
+) datos
+LIMIT 45000
+ON CONFLICT (id_perfil, id_contenido) DO NOTHING;
+
+-- =========================================================
+-- 6. CONTENIDO GUARDADO EN LISTAS
+--    Hasta 35.000 combinaciones lista/contenido.
+-- =========================================================
+
+INSERT INTO Lista_Guarda_Contenido (id_lista, id_contenido)
+SELECT id_lista, id_contenido
+FROM (
+    SELECT DISTINCT
+        (floor(random() * 8000) + 1)::INT AS id_lista,
+        (floor(random() * 80) + 1)::INT AS id_contenido
+    FROM generate_series(1, 45000)
+) datos
+LIMIT 35000
+ON CONFLICT DO NOTHING;
+
+-- =========================================================
+-- 7. HISTORIAL DE CONTENIDO
+--    70.000 filas con duracion y segundos reproducidos.
+-- =========================================================
+
+INSERT INTO Historial_Contenido (
+    id_historial,
+    id_contenido,
+    nombre,
+    duracion,
+    segundos_reproduccion,
+    fecha
+)
+SELECT
+    (floor(random() * 8000) + 1)::INT AS id_historial,
+    c.id_contenido,
+    c.nombre,
+    COALESCE(p.duracion, 24) AS duracion,
+    floor(random() * (COALESCE(p.duracion, 24) * 60 + 1))::INT AS segundos_reproduccion,
+    DATE '2024-01-01'
+        + ((floor(random() * 730)) || ' days')::INTERVAL
+        + ((floor(random() * 24)) || ' hours')::INTERVAL
+        + ((floor(random() * 60)) || ' minutes')::INTERVAL AS fecha
+FROM generate_series(1, 70000) AS gs(n)
+JOIN Contenido c ON c.id_contenido = ((gs.n * 37) % 80) + 1
+LEFT JOIN Peliculas p ON p.id_contenido = c.id_contenido;
+
+-- =========================================================
+-- 8. RECOMENDACIONES
+--    3 recomendaciones por historial = 24.000 filas.
+-- =========================================================
+
+INSERT INTO Recomendaciones (atribuye, id_historial)
+SELECT
+    CASE (gs.n % 6)
+        WHEN 0 THEN 'Basado en tu historial de visualizacion'
+        WHEN 1 THEN 'Usuarios similares tambien vieron contenido de este tipo'
+        WHEN 2 THEN 'Popular en tu region'
+        WHEN 3 THEN 'Tendencia esta semana'
+        WHEN 4 THEN 'Porque viste contenido del mismo genero'
+        ELSE 'Top valorado por la comunidad'
+    END AS atribuye,
+    h.id_historial
+FROM Historial h
+CROSS JOIN generate_series(1, 3) AS gs(n);
+
+-- =========================================================
+-- 9. VERIFICACION FINAL
+-- =========================================================
+
 SELECT tabla, registros FROM (
     SELECT 'Tipo_Pago'                    AS tabla, COUNT(*) AS registros FROM Tipo_Pago
     UNION ALL SELECT 'Plan',                        COUNT(*) FROM Plan
     UNION ALL SELECT 'Plan_Tipo_Pago',              COUNT(*) FROM Plan_Tipo_Pago
+    UNION ALL SELECT 'Usuario',                     COUNT(*) FROM Usuario
     UNION ALL SELECT 'Detalles_Pago',               COUNT(*) FROM Detalles_Pago
     UNION ALL SELECT 'Fecha_Renovacion',            COUNT(*) FROM Fecha_Renovacion
-    UNION ALL SELECT 'Usuario',                     COUNT(*) FROM Usuario
     UNION ALL SELECT 'Perfil',                      COUNT(*) FROM Perfil
     UNION ALL SELECT 'Historial',                   COUNT(*) FROM Historial
     UNION ALL SELECT 'Listas',                      COUNT(*) FROM Listas
@@ -497,3 +494,51 @@ SELECT tabla, registros FROM (
     UNION ALL SELECT 'Historial_Contenido',         COUNT(*) FROM Historial_Contenido
 ) t
 ORDER BY registros DESC;
+
+SELECT
+    SUM(registros) AS total_filas_estimadas
+FROM (
+    SELECT COUNT(*) AS registros FROM Tipo_Pago
+    UNION ALL SELECT COUNT(*) FROM Plan
+    UNION ALL SELECT COUNT(*) FROM Plan_Tipo_Pago
+    UNION ALL SELECT COUNT(*) FROM Usuario
+    UNION ALL SELECT COUNT(*) FROM Detalles_Pago
+    UNION ALL SELECT COUNT(*) FROM Fecha_Renovacion
+    UNION ALL SELECT COUNT(*) FROM Perfil
+    UNION ALL SELECT COUNT(*) FROM Historial
+    UNION ALL SELECT COUNT(*) FROM Listas
+    UNION ALL SELECT COUNT(*) FROM Contenido
+    UNION ALL SELECT COUNT(*) FROM Peliculas
+    UNION ALL SELECT COUNT(*) FROM Series
+    UNION ALL SELECT COUNT(*) FROM Temporadas
+    UNION ALL SELECT COUNT(*) FROM Episodios
+    UNION ALL SELECT COUNT(*) FROM Generos
+    UNION ALL SELECT COUNT(*) FROM Valoracion
+    UNION ALL SELECT COUNT(*) FROM Recomendaciones
+    UNION ALL SELECT COUNT(*) FROM Perfil_Ve_Contenido
+    UNION ALL SELECT COUNT(*) FROM Lista_Guarda_Contenido
+    UNION ALL SELECT COUNT(*) FROM Pelicula_Tiene_Genero
+    UNION ALL SELECT COUNT(*) FROM Serie_Tiene_Genero
+    UNION ALL SELECT COUNT(*) FROM Historial_Contenido
+) total;
+
+-- Consulta util para revisar persona + plan + mensual/anual + medio de pago.
+SELECT
+    u.correo,
+    p.nombre AS plan,
+    CASE p.tipo_plan WHEN 1 THEN 'mensual' WHEN 12 THEN 'anual' END AS tipo_plan,
+    tp.nombre AS tipo_pago,
+    dp.numero_cuenta,
+    dp.fecha_pago,
+    fr.fecha AS fecha_renovacion
+FROM Usuario u
+JOIN Plan p ON p.id_plan = u.id_plan
+JOIN Detalles_Pago dp ON dp.id_usuario = u.id_usuario
+JOIN Tipo_Pago tp ON tp.id_tipo_pago = dp.id_tipo_pago
+JOIN Fecha_Renovacion fr ON fr.id_detalles_pago = dp.id_detalles_pago
+ORDER BY u.id_usuario
+LIMIT 20;
+
+-- =========================================================
+-- FIN DEL SCRIPT
+-- =========================================================
