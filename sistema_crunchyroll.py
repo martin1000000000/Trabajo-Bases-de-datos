@@ -1,7 +1,7 @@
 """
 Proyecto: Sistema transaccional Crunchyroll
-Grupo: completar nombre del grupo
-Integrantes: completar integrantes
+Grupo: Grupo 3
+Integrantes: Martin Arrigo, Nicolas Toro, Benjamin Neira, Diego Mora
 
 Entrega 2 - Bases de Datos
 Sistema de consola en Python conectado a PostgreSQL.
@@ -548,7 +548,10 @@ def eliminar_historial_contenido():
 def crear_valoracion():
     id_perfil = leer_int("ID perfil: ")
     id_contenido = leer_int("ID contenido: ")
-    puntaje = leer_decimal("Puntaje 1 a 10: ")
+    puntaje = leer_decimal("Puntaje (1.0 a 10.0): ")
+    while not (1 <= puntaje <= 10):
+        print("El puntaje debe estar entre 1 y 10.")
+        puntaje = leer_decimal("Puntaje (1.0 a 10.0): ")
 
     conn = conectar()
     cur = conn.cursor()
