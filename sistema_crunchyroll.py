@@ -181,6 +181,7 @@ def crear_usuario_con_suscripcion():
 
 
 def listar_usuarios():
+    # Solo muestra usuarios activos (eliminado = FALSE)
     filas = ejecutar_select("""
         SELECT
             u.id_usuario,
@@ -196,23 +197,69 @@ def listar_usuarios():
         JOIN Detalles_Pago dp ON dp.id_usuario = u.id_usuario
         JOIN Tipo_Pago tp ON tp.id_tipo_pago = dp.id_tipo_pago
         JOIN Fecha_Renovacion fr ON fr.id_detalles_pago = dp.id_detalles_pago
+        WHERE u.eliminado = FALSE
         ORDER BY u.id_usuario
         LIMIT 50;
     """)
-    imprimir_filas("USUARIOS Y SUSCRIPCIONES", filas)
+    imprimir_filas("USUARIOS ACTIVOS", filas)
 
 
 def eliminar_usuario():
-    id_usuario = leer_int("ID usuario a eliminar: ")
+    """Soft Delete: marca el usuario como eliminado sin borrarlo de la BD."""
+    id_usuario = leer_int("ID usuario a mover a papelera: ")
     conn = conectar()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM Usuario WHERE id_usuario = %s;", (id_usuario,))
+        cur.execute("""
+            SELECT correo FROM Usuario
+            WHERE id_usuario = %s AND eliminado = FALSE;
+        """, (id_usuario,))
+        usuario = cur.fetchone()
+        if not usuario:
+            print("No existe un usuario activo con ese ID.")
+            return
+        cur.execute("""
+            UPDATE Usuario SET eliminado = TRUE
+            WHERE id_usuario = %s;
+        """, (id_usuario,))
         conn.commit()
-        print("Usuario eliminado correctamente.")
+        print(f"Usuario '{usuario[0]}' movido a papelera (no borrado de la BD).")
     except Exception as error:
         conn.rollback()
         print(f"Error al eliminar usuario: {error}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def restaurar_usuario():
+    """Restaura un usuario desde la papelera."""
+    filas = ejecutar_select("""
+        SELECT id_usuario, correo, region FROM Usuario
+        WHERE eliminado = TRUE ORDER BY id_usuario LIMIT 50;
+    """)
+    imprimir_filas("PAPELERA DE USUARIOS", filas)
+    id_usuario = leer_int("ID usuario a restaurar: ")
+    conn = conectar()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT correo FROM Usuario
+            WHERE id_usuario = %s AND eliminado = TRUE;
+        """, (id_usuario,))
+        usuario = cur.fetchone()
+        if not usuario:
+            print("No existe ese usuario en la papelera.")
+            return
+        cur.execute("""
+            UPDATE Usuario SET eliminado = FALSE
+            WHERE id_usuario = %s;
+        """, (id_usuario,))
+        conn.commit()
+        print(f"Usuario '{usuario[0]}' restaurado correctamente.")
+    except Exception as error:
+        conn.rollback()
+        print(f"Error al restaurar usuario: {error}")
     finally:
         cur.close()
         conn.close()
@@ -255,6 +302,7 @@ def crear_perfil():
 
 
 def listar_perfiles():
+    # Solo muestra perfiles activos (eliminado = FALSE)
     filas = ejecutar_select("""
         SELECT
             p.id_perfil,
@@ -264,23 +312,70 @@ def listar_perfiles():
             u.correo
         FROM Perfil p
         JOIN Usuario u ON u.id_usuario = p.id_usuario
+        WHERE p.eliminado = FALSE
         ORDER BY p.id_perfil
         LIMIT 80;
     """)
-    imprimir_filas("PERFILES", filas)
+    imprimir_filas("PERFILES ACTIVOS", filas)
 
 
 def eliminar_perfil():
-    id_perfil = leer_int("ID perfil a eliminar: ")
+    """Soft Delete: marca el perfil como eliminado sin borrarlo de la BD."""
+    id_perfil = leer_int("ID perfil a mover a papelera: ")
     conn = conectar()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM Perfil WHERE id_perfil = %s;", (id_perfil,))
+        cur.execute("""
+            SELECT nombre FROM Perfil
+            WHERE id_perfil = %s AND eliminado = FALSE;
+        """, (id_perfil,))
+        perfil = cur.fetchone()
+        if not perfil:
+            print("No existe un perfil activo con ese ID.")
+            return
+        cur.execute("""
+            UPDATE Perfil SET eliminado = TRUE
+            WHERE id_perfil = %s;
+        """, (id_perfil,))
         conn.commit()
-        print("Perfil eliminado correctamente.")
+        print(f"Perfil '{perfil[0]}' movido a papelera (no borrado de la BD).")
     except Exception as error:
         conn.rollback()
         print(f"Error al eliminar perfil: {error}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def restaurar_perfil():
+    """Restaura un perfil desde la papelera."""
+    filas = ejecutar_select("""
+        SELECT p.id_perfil, p.nombre, u.correo FROM Perfil p
+        JOIN Usuario u ON u.id_usuario = p.id_usuario
+        WHERE p.eliminado = TRUE ORDER BY p.id_perfil LIMIT 80;
+    """)
+    imprimir_filas("PAPELERA DE PERFILES", filas)
+    id_perfil = leer_int("ID perfil a restaurar: ")
+    conn = conectar()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT nombre FROM Perfil
+            WHERE id_perfil = %s AND eliminado = TRUE;
+        """, (id_perfil,))
+        perfil = cur.fetchone()
+        if not perfil:
+            print("No existe ese perfil en la papelera.")
+            return
+        cur.execute("""
+            UPDATE Perfil SET eliminado = FALSE
+            WHERE id_perfil = %s;
+        """, (id_perfil,))
+        conn.commit()
+        print(f"Perfil '{perfil[0]}' restaurado correctamente.")
+    except Exception as error:
+        conn.rollback()
+        print(f"Error al restaurar perfil: {error}")
     finally:
         cur.close()
         conn.close()
@@ -334,6 +429,7 @@ def guardar_contenido_en_lista():
 
 
 def listar_listas():
+    # Solo muestra listas activas (eliminado = FALSE)
     filas = ejecutar_select("""
         SELECT
             l.id_lista,
@@ -343,11 +439,12 @@ def listar_listas():
         FROM Listas l
         JOIN Usuario u ON u.id_usuario = l.id_usuario
         LEFT JOIN Lista_Guarda_Contenido lgc ON lgc.id_lista = l.id_lista
+        WHERE l.eliminado = FALSE
         GROUP BY l.id_lista, l.nombre_lista, u.correo
         ORDER BY l.id_lista
         LIMIT 80;
     """)
-    imprimir_filas("LISTAS", filas)
+    imprimir_filas("LISTAS ACTIVAS", filas)
 
 
 def listar_contenidos_de_lista():
@@ -389,16 +486,78 @@ def eliminar_contenido_de_lista():
 
 
 def eliminar_lista():
-    id_lista = leer_int("ID lista a eliminar: ")
+    """Soft Delete: marca la lista como eliminada sin borrarla de la BD."""
+    id_lista = leer_int("ID lista a mover a papelera: ")
     conn = conectar()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM Listas WHERE id_lista = %s;", (id_lista,))
+        # Verificar que la lista existe y no esta ya eliminada
+        cur.execute("""
+            SELECT nombre_lista FROM Listas
+            WHERE id_lista = %s AND eliminado = FALSE;
+        """, (id_lista,))
+        lista = cur.fetchone()
+        if not lista:
+            print("No existe una lista activa con ese ID.")
+            return
+        # Soft delete: solo cambiar el flag, no borrar
+        cur.execute("""
+            UPDATE Listas SET eliminado = TRUE
+            WHERE id_lista = %s;
+        """, (id_lista,))
         conn.commit()
-        print("Lista eliminada correctamente.")
+        print(f"Lista '{lista[0]}' movida a la papelera (no fue borrada de la BD).")
     except Exception as error:
         conn.rollback()
         print(f"Error al eliminar lista: {error}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+def ver_papelera_listas():
+    """Muestra las listas marcadas como eliminadas."""
+    filas = ejecutar_select("""
+        SELECT
+            l.id_lista,
+            l.nombre_lista,
+            u.correo,
+            COUNT(lgc.id_contenido) AS contenidos_guardados
+        FROM Listas l
+        JOIN Usuario u ON u.id_usuario = l.id_usuario
+        LEFT JOIN Lista_Guarda_Contenido lgc ON lgc.id_lista = l.id_lista
+        WHERE l.eliminado = TRUE
+        GROUP BY l.id_lista, l.nombre_lista, u.correo
+        ORDER BY l.id_lista
+        LIMIT 80;
+    """)
+    imprimir_filas("PAPELERA DE LISTAS", filas)
+
+
+def restaurar_lista():
+    """Restaura una lista desde la papelera (vuelve a eliminado = FALSE)."""
+    ver_papelera_listas()
+    id_lista = leer_int("ID lista a restaurar: ")
+    conn = conectar()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT nombre_lista FROM Listas
+            WHERE id_lista = %s AND eliminado = TRUE;
+        """, (id_lista,))
+        lista = cur.fetchone()
+        if not lista:
+            print("No existe una lista en la papelera con ese ID.")
+            return
+        cur.execute("""
+            UPDATE Listas SET eliminado = FALSE
+            WHERE id_lista = %s;
+        """, (id_lista,))
+        conn.commit()
+        print(f"Lista '{lista[0]}' restaurada correctamente.")
+    except Exception as error:
+        conn.rollback()
+        print(f"Error al restaurar lista: {error}")
     finally:
         cur.close()
         conn.close()
@@ -644,8 +803,9 @@ def menu_usuarios():
     while True:
         print("\n--- MENU USUARIOS Y SUSCRIPCIONES ---")
         print("1. Crear usuario con suscripcion y pago")
-        print("2. Listar usuarios")
-        print("3. Eliminar usuario")
+        print("2. Listar usuarios activos")
+        print("3. Eliminar usuario (mover a papelera)")
+        print("4. Restaurar usuario desde papelera")
         print("0. Volver")
         opcion = input("Seleccione una opcion: ").strip()
         if opcion == "1":
@@ -654,6 +814,8 @@ def menu_usuarios():
             listar_usuarios()
         elif opcion == "3":
             eliminar_usuario()
+        elif opcion == "4":
+            restaurar_usuario()
         elif opcion == "0":
             break
         else:
@@ -664,8 +826,9 @@ def menu_perfiles():
     while True:
         print("\n--- MENU PERFILES ---")
         print("1. Crear perfil")
-        print("2. Listar perfiles")
-        print("3. Eliminar perfil")
+        print("2. Listar perfiles activos")
+        print("3. Eliminar perfil (mover a papelera)")
+        print("4. Restaurar perfil desde papelera")
         print("0. Volver")
         opcion = input("Seleccione una opcion: ").strip()
         if opcion == "1":
@@ -674,6 +837,8 @@ def menu_perfiles():
             listar_perfiles()
         elif opcion == "3":
             eliminar_perfil()
+        elif opcion == "4":
+            restaurar_perfil()
         elif opcion == "0":
             break
         else:
@@ -685,10 +850,12 @@ def menu_listas():
         print("\n--- MENU LISTAS ---")
         print("1. Crear lista")
         print("2. Guardar contenido en lista")
-        print("3. Listar listas")
+        print("3. Listar listas activas")
         print("4. Listar contenidos de una lista")
         print("5. Quitar contenido de lista")
-        print("6. Eliminar lista")
+        print("6. Eliminar lista (mover a papelera)")
+        print("7. Ver papelera")
+        print("8. Restaurar lista desde papelera")
         print("0. Volver")
         opcion = input("Seleccione una opcion: ").strip()
         if opcion == "1":
@@ -703,6 +870,10 @@ def menu_listas():
             eliminar_contenido_de_lista()
         elif opcion == "6":
             eliminar_lista()
+        elif opcion == "7":
+            ver_papelera_listas()
+        elif opcion == "8":
+            restaurar_lista()
         elif opcion == "0":
             break
         else:
